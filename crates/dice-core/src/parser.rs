@@ -1,7 +1,6 @@
-use std::unreachable;
-
 use std::fmt;
 use std::ops::Range;
+use std::unreachable;
 
 use lalrpop_util::lalrpop_mod;
 use pratt::{Affix, Associativity, PrattError, PrattParser, Precedence};
@@ -209,7 +208,10 @@ fn parse_dice_term(s: &str, offset: usize) -> std::result::Result<DiceTerm, Toke
       // worse. An explicit size gives the pool directly.
       let pool = if size.is_empty() {
         count.checked_add(1).ok_or_else(|| TokenError {
-          message: format!("dice pool of `{s}` is too large, must be at most {}", u32::MAX),
+          message: format!(
+            "dice pool of `{s}` is too large, must be at most {}",
+            u32::MAX
+          ),
           range: offset..offset + s.len(),
         })?
       } else {
@@ -291,8 +293,14 @@ where
         expr.range = range;
         Ok(expr)
       }
-      TokenTreeKind::Dice(term) => Ok(Expr { range, kind: ExprKind::Dice(term) }),
-      TokenTreeKind::Constant(num) => Ok(Expr { range, kind: ExprKind::Constant(num) }),
+      TokenTreeKind::Dice(term) => Ok(Expr {
+        range,
+        kind: ExprKind::Dice(term),
+      }),
+      TokenTreeKind::Constant(num) => Ok(Expr {
+        range,
+        kind: ExprKind::Constant(num),
+      }),
       _ => unreachable!(),
     }
   }
@@ -356,11 +364,17 @@ mod tests {
   }
 
   fn add(range: Range<usize>, l: Expr, r: Expr) -> Expr {
-    expr(range, ExprKind::BinOp(Box::new(l), BinOpKind::Add, Box::new(r)))
+    expr(
+      range,
+      ExprKind::BinOp(Box::new(l), BinOpKind::Add, Box::new(r)),
+    )
   }
 
   fn mul(range: Range<usize>, l: Expr, r: Expr) -> Expr {
-    expr(range, ExprKind::BinOp(Box::new(l), BinOpKind::Mul, Box::new(r)))
+    expr(
+      range,
+      ExprKind::BinOp(Box::new(l), BinOpKind::Mul, Box::new(r)),
+    )
   }
 
   fn neg(range: Range<usize>, e: Expr) -> Expr {

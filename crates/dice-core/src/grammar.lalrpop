@@ -4,8 +4,9 @@ use crate::parser::{TokenError, TokenTree, TokenTreeKind, parse_constant, parse_
 
 grammar;
 
-// Digit runs are unbounded in the regexes below, so converting them to numbers can fail.
-// Actions marked `=>?` report that as a `TokenError` instead of panicking.
+// Integers are unbounded in the regexes below, so converting them to numbers 
+// can fail. Actions marked `=>?` report that as a `TokenError` instead of 
+// panicking.
 extern {
   type Error = TokenError;
 }
