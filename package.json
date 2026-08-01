@@ -7,7 +7,7 @@
     "build": "npm run wasm-pack:release && next build",
     "start": "next start",
     "lint": "eslint",
-    "wasm-pack": "wasm-pack build crates/dice-wasm --target web --out-dir ../../public/wasm --out-name dice_wasm",
+    "wasm-pack": "wasm-pack build crates/dice-wasm --target web --out-name dice_wasm",
     "wasm-pack:dev": "npm run wasm-pack -- --dev",
     "wasm-pack:release": "npm run wasm-pack -- --release"
   },

@@ -1,13 +1,9 @@
-import type * as DiceWasm from "@/public/wasm/dice_wasm.js";
-
-const WASM_MODULE_PATH = "/wasm/dice_wasm.js";
+import type * as DiceWasm from "@/crates/dice-wasm/pkg/dice_wasm.js";
 
 let modulePromise: Promise<typeof DiceWasm> | null = null;
 
 async function instantiate(): Promise<typeof DiceWasm> {
-  const wasm = (await import(
-    /* webpackIgnore: true */ WASM_MODULE_PATH
-  )) as typeof DiceWasm;
+  const wasm = await import("@/crates/dice-wasm/pkg/dice_wasm.js");
   await wasm.default();
   return wasm;
 }
