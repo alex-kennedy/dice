@@ -1,0 +1,91 @@
+use lalrpop_util::ParseError;
+
+use crate::parser::{TokenError, TokenTree, TokenTreeKind, parse_constant, parse_dice_term};
+
+grammar;
+
+// Digit runs are unbounded in the regexes below, so converting them to numbers can fail.
+// Actions marked `=>?` report that as a `TokenError` instead of panicking.
+extern {
+  type Error = TokenError;
+}
+
+pub TokenTree = Group;
+
+Group: Vec<TokenTree> = <prefix:Prefix*> <primary:Primary>
+  <rest:(Infix Prefix* Primary)*> => {
+  let mut group = prefix;
+  group.push(primary);
+  for (infix, mut prefix, primary) in rest {
+    group.push(infix);
+    group.append(&mut prefix);
+    group.push(primary);
+  }
+  group
+};
+
+Primary: TokenTree = {
+  <start: @L> "(" <g:Group> ")" <end: @R> => TokenTree {
+    range: start..end,
+    kind: TokenTreeKind::Group(g),
+  },
+  // Implicit multiplication, e.g. `12(d6+1)`. The digits and the paren must be
+  // contiguous, so this is one token.
+  <start: @L> <m:r"[0-9]+\("> <left_end: @R> <g:Group> <group_end: @R> ")" <end: @R> =>? Ok(TokenTree {
+    range: start..end,
+    kind: TokenTreeKind::Group(vec![
+      TokenTree {
+        range: start..left_end - 1, // Drops the `(`.
+        kind: TokenTreeKind::Constant(
+          parse_constant(&m[..m.len() - 1], start).map_err(|error| ParseError::User { error })?,
+        ),
+      },
+      TokenTree {
+        range: left_end..left_end, // Empty range (implicit operator).
+        kind: TokenTreeKind::Infix('*'),
+      },
+      TokenTree {
+        range: left_end..group_end,
+        kind: TokenTreeKind::Group(g),
+      },
+    ])
+  }),
+  <start: @L> <s:r"[0-9]*d[0-9]+([ad][0-9]*)?"> <end: @R> =>? Ok(TokenTree {
+    range: start..end,
+    kind: TokenTreeKind::Dice(
+      parse_dice_term(s, start).map_err(|error| ParseError::User { error })?,
+    ),
+  }),
+  <start: @L> <s:r"[0-9]+"> <end: @R> =>? Ok(TokenTree {
+    range: start..end,
+    kind: TokenTreeKind::Constant(
+      parse_constant(s, start).map_err(|error| ParseError::User { error })?,
+    ),
+  }),
+}
+
+Infix: TokenTree = {
+  <start: @L> "+" <end: @R> => TokenTree {
+    range: start..end,
+    kind: TokenTreeKind::Infix('+'),
+  },
+  <start: @L> "-" <end: @R> => TokenTree {
+    range: start..end,
+    kind: TokenTreeKind::Infix('-'),
+  },
+  <start: @L> "*" <end: @R> => TokenTree {
+    range: start..end,
+    kind: TokenTreeKind::Infix('*'),
+  }
+}
+
+Prefix: TokenTree = {
+  <start: @L> "-" <end: @R> => TokenTree {
+    range: start..end,
+    kind: TokenTreeKind::Sign('-'),
+  },
+  <start: @L> "+" <end: @R> => TokenTree {
+    range: start..end,
+    kind: TokenTreeKind::Sign('+'),
+  }
+}

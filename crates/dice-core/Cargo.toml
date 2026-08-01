@@ -7,3 +7,9 @@ repository.workspace = true
 description.workspace = true
 
 [dependencies]
+lalrpop-util = "0.23.1"
+pratt = "0.4.0"
+rstest = "0.26.1"
+
+[build-dependencies]
+lalrpop = "0.23.1"
