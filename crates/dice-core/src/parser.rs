@@ -2,6 +2,8 @@ use std::fmt;
 use std::ops::Range;
 use std::unreachable;
 
+use crate::dice::{DicePool, Keep};
+
 use lalrpop_util::lalrpop_mod;
 use pratt::{Affix, Associativity, PrattError, PrattParser, Precedence};
 
@@ -94,27 +96,6 @@ impl<T: fmt::Display> From<lalrpop_util::ParseError<usize, T, TokenError>> for P
   }
 }
 
-/// Which dice from a rolled pool contribute to the sum.
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
-pub enum Keep {
-  /// The whole pool, i.e. pool == count.
-  All,
-  /// The highest count of the pool, written a for "advantage".
-  Best,
-  /// The lowest count of the pool, written disadvantage.
-  Worst,
-}
-
-/// A dice term means roll `pool` dice of `faces` sides and sum the `count` of them selected by
-/// `keep`.
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
-pub struct DiceTerm {
-  pub count: u32,
-  pub faces: u32,
-  pub pool: u32,
-  pub keep: Keep,
-}
-
 /// A parsed dice expression node, along with the byte range of the input it was parsed from.
 #[derive(Debug, Eq, PartialEq)]
 pub struct Expr {
@@ -127,7 +108,7 @@ pub struct Expr {
 pub enum ExprKind {
   BinOp(Box<Expr>, BinOpKind, Box<Expr>),
   UnOp(UnOpKind, Box<Expr>),
-  Dice(DiceTerm),
+  Dice(DicePool),
   Constant(i32),
 }
 
@@ -153,7 +134,7 @@ pub enum TokenTreeKind {
   Group(Vec<TokenTree>),
   Sign(char),
   Infix(char),
-  Dice(DiceTerm),
+  Dice(DicePool),
   Constant(i32),
 }
 
@@ -181,7 +162,7 @@ fn parse_dice_field(s: &str, offset: usize, what: &str) -> std::result::Result<u
 /// The grammar guarantees the shape `[0-9]*d[0-9]+([ad][0-9]*)?`, but says nothing about
 /// how big those digit runs are, so each one can still overflow. `offset` is where the
 /// token starts in the whole input, so errors can point at the offending field.
-fn parse_dice_term(s: &str, offset: usize) -> std::result::Result<DiceTerm, TokenError> {
+fn parse_dice_term(s: &str, offset: usize) -> std::result::Result<DicePool, TokenError> {
   let separator = s.find('d').expect("die term always contains a `d`");
   let count: u32 = if separator == 0 {
     1
@@ -221,7 +202,15 @@ fn parse_dice_term(s: &str, offset: usize) -> std::result::Result<DiceTerm, Toke
     }
   };
 
-  Ok(DiceTerm {
+  // Keeping more dice than are rolled is invalid.
+  if count > pool {
+    return Err(TokenError {
+      message: format!("{s} keeps {count} dice from a pool of only {pool}"),
+      range: offset..offset + s.len(),
+    });
+  }
+
+  Ok(DicePool {
     count,
     faces,
     pool,
@@ -384,7 +373,7 @@ mod tests {
   fn dice(range: Range<usize>, count: u32, faces: u32, pool: u32, keep: Keep) -> Expr {
     expr(
       range,
-      ExprKind::Dice(DiceTerm {
+      ExprKind::Dice(DicePool {
         count,
         faces,
         pool,
@@ -448,12 +437,12 @@ mod tests {
     )
   )]
   #[case(
-    "4d6d1+2*3-1",
+    "1d6d4+2*3-1",
     add(
       0..11,
       add(
         0..9,
-        dice(0..5, 4, 6, 1, Keep::Worst),
+        dice(0..5, 1, 6, 4, Keep::Worst),
         mul(6..9, constant(6..7, 2), constant(8..9, 3)),
       ),
       neg(9..11, constant(10..11, 1)),
@@ -505,20 +494,36 @@ mod tests {
   }
 
   #[rstest]
-  #[case("d20", DiceTerm { count: 1, faces: 20, pool: 1, keep: Keep::All })]
-  #[case("2d20", DiceTerm { count: 2, faces: 20, pool: 2, keep: Keep::All })]
-  #[case("5d1", DiceTerm { count: 5, faces: 1, pool: 5, keep: Keep::All })]
-  #[case("d20a", DiceTerm { count: 1, faces: 20, pool: 2, keep: Keep::Best })]
-  #[case("d20d", DiceTerm { count: 1, faces: 20, pool: 2, keep: Keep::Worst })]
-  #[case("2d20d", DiceTerm { count: 2, faces: 20, pool: 3, keep: Keep::Worst })]
-  #[case("5d20d", DiceTerm { count: 5, faces: 20, pool: 6, keep: Keep::Worst })]
-  #[case("d20d5", DiceTerm { count: 1, faces: 20, pool: 5, keep: Keep::Worst })]
-  #[case("7d20d5", DiceTerm { count: 7, faces: 20, pool: 5, keep: Keep::Worst })] // Invalid.
-  #[case("5d20d7", DiceTerm { count: 5, faces: 20, pool: 7, keep: Keep::Worst })]
-  #[case("5d20a7", DiceTerm { count: 5, faces: 20, pool: 7, keep: Keep::Best })]
-  #[case("5d20a", DiceTerm { count: 5, faces: 20, pool: 6, keep: Keep::Best })]
-  fn test_square(#[case] input: &str, #[case] expected: DiceTerm) {
+  #[case("d20", DicePool { count: 1, faces: 20, pool: 1, keep: Keep::All })]
+  #[case("2d20", DicePool { count: 2, faces: 20, pool: 2, keep: Keep::All })]
+  #[case("5d1", DicePool { count: 5, faces: 1, pool: 5, keep: Keep::All })]
+  #[case("d20a", DicePool { count: 1, faces: 20, pool: 2, keep: Keep::Best })]
+  #[case("d20d", DicePool { count: 1, faces: 20, pool: 2, keep: Keep::Worst })]
+  #[case("2d20d", DicePool { count: 2, faces: 20, pool: 3, keep: Keep::Worst })]
+  #[case("5d20d", DicePool { count: 5, faces: 20, pool: 6, keep: Keep::Worst })]
+  #[case("d20d5", DicePool { count: 1, faces: 20, pool: 5, keep: Keep::Worst })]
+  #[case("5d20d7", DicePool { count: 5, faces: 20, pool: 7, keep: Keep::Worst })]
+  #[case("5d20a7", DicePool { count: 5, faces: 20, pool: 7, keep: Keep::Best })]
+  #[case("5d20a", DicePool { count: 5, faces: 20, pool: 6, keep: Keep::Best })]
+  fn test_square(#[case] input: &str, #[case] expected: DicePool) {
     assert_eq!(parse_dice_term(input, 0).unwrap(), expected);
+  }
+
+  #[rstest]
+  #[case("7d20d5", 0..6)]
+  #[case("2d6a1", 0..5)]
+  #[case("4d6a3", 0..5)]
+  fn test_parse_keeps_more_than_it_rolls(
+    #[case] query: &str,
+    #[case] expected_range: Range<usize>,
+  ) {
+    let err = parse(query).expect_err("expected a parse error");
+    assert_eq!(err.range, expected_range);
+    assert!(
+      err.message.contains("from a pool of only"),
+      "{}",
+      err.message
+    );
   }
 
   #[rstest]
