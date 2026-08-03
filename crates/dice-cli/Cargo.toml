@@ -7,3 +7,6 @@ repository.workspace = true
 description.workspace = true
 
 [dependencies]
+clap = { version = "4.6.5", features = ["derive"] }
+dice-core = { version = "0.1.0", path = "../dice-core" }
+ratatui = "0.30.2"
