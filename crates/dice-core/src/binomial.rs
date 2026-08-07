@@ -1,5 +1,4 @@
-use num::{One, Zero};
-use num_bigint::BigUint;
+use num::{BigUint, One, Zero};
 use std::vec::Vec;
 
 /// Binomial coefficients, cached with good ol' Pascal's triangle.

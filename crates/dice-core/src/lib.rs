@@ -7,6 +7,7 @@ mod distribution;
 mod order_statistics;
 mod simulate;
 mod sum_distributions;
+mod keep;
 
 pub use calculate::{CalculateError, calculate_expression};
 pub use distribution::Distribution;

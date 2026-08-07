@@ -63,7 +63,6 @@ impl DicePool {
       let d = Distribution::new_uniform(self.faces);
       return sum_distributions(vec![&d], Some(self.count as i32));
     }
-    // TODO.
-    return Distribution::new_constant(0);
+    crate::keep::calculate_keep_distribution(&self)
   }
 }
