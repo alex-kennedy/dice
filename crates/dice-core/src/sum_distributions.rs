@@ -38,7 +38,7 @@ pub fn sum_distributions(
   for (i, d) in distributions.iter().enumerate() {
     for x in d.min()..d.max() + 1 {
       distributions_transformed[i][(x - min_individual_roll) as usize] =
-        Complex64::new(d.pdf_at(x), 0.0);
+        Complex64::new(d.pmf_at(x), 0.0);
     }
     fft.process(distributions_transformed[i].as_mut_slice());
   }
@@ -77,19 +77,19 @@ mod tests {
 
   /// Direct O(n*m) convolution, i.e. the definition of a sum of two independent variables.
   fn naive_sum(a: &Distribution, b: &Distribution) -> Distribution {
-    let mut pdf = vec![0.0; a.len() + b.len() - 1];
-    for (i, p) in a.pdf().iter().enumerate() {
-      for (j, q) in b.pdf().iter().enumerate() {
-        pdf[i + j] += p * q;
+    let mut pmf = vec![0.0; a.len() + b.len() - 1];
+    for (i, p) in a.pmf().iter().enumerate() {
+      for (j, q) in b.pmf().iter().enumerate() {
+        pmf[i + j] += p * q;
       }
     }
-    Distribution::new(pdf, a.min() + b.min())
+    Distribution::new(pmf, a.min() + b.min())
   }
 
   fn assert_close(actual: &Distribution, expected: &Distribution) {
     assert_eq!(actual.min(), expected.min(), "minimum");
     assert_eq!(actual.len(), expected.len(), "length");
-    for (i, (got, want)) in actual.pdf().iter().zip(expected.pdf()).enumerate() {
+    for (i, (got, want)) in actual.pmf().iter().zip(expected.pmf()).enumerate() {
       assert!(
         (got - want).abs() < 1e-9,
         "index {i}: got {got}, want {want}"
@@ -146,7 +146,7 @@ mod tests {
   fn test_negative_multiplier_on_constant() {
     let result = sum_distributions(vec![&Distribution::new_constant(1)], Some(-1));
     assert_eq!(result.min(), -1);
-    assert_eq!(result.pdf(), &vec![1.0]);
+    assert_eq!(result.pmf(), &vec![1.0]);
   }
 
   /// -n copies is the negation of n copies, e.g. -2 copies of a d4 is -(2d4).
@@ -170,6 +170,6 @@ mod tests {
   fn test_no_distributions_is_zero() {
     let result = sum_distributions(vec![], None);
     assert_eq!(result.min(), 0);
-    assert_eq!(result.pdf(), &vec![1.0]);
+    assert_eq!(result.pmf(), &vec![1.0]);
   }
 }
