@@ -8,7 +8,19 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Bar, BarChart, Block, BorderType, Padding, Widget};
 use ratatui::{Terminal, TerminalOptions, Viewport};
 
-use crate::simulate::{Stats, Timing};
+use crate::stats::{self, Stats};
+
+/// What the chart reports about the cost of producing the distribution.
+pub enum Timing {
+  /// Per-roll cost across a simulation, which varies enough to be worth a spread.
+  Simulated {
+    runs: usize,
+    mean_nanos: f64,
+    sd_nanos: f64,
+  },
+  /// Wall time of the one exact calculation.
+  Calculated { nanos: f64 },
+}
 
 /// Rows of bars in the chart, excluding the axis labels and the surrounding block.
 const BAR_ROWS: u16 = 13;
@@ -28,14 +40,10 @@ const ACCENT: Color = Color::Rgb(120, 226, 240);
 ///
 /// When stdout isn't a terminal the same rendering is dumped as plain text, so the output
 /// stays readable through a pipe.
-pub fn show(
-  expression: &str,
-  pmf: &[(i32, f64)],
-  stats: &Stats,
-  timing: &Timing,
-) -> io::Result<()> {
+pub fn show(expression: &str, pmf: &[(i32, f64)], timing: &Timing) -> io::Result<()> {
   // A blank line, the chart, a blank line, two lines of stats and a trailing blank.
   let height = CHART_HEIGHT + 5;
+  let stats = &stats::summarize(pmf);
 
   if io::stdout().is_terminal() {
     let options = TerminalOptions {
@@ -72,14 +80,13 @@ fn draw(buf: &mut Buffer, expression: &str, pmf: &[(i32, f64)], stats: &Stats, t
   .horizontal_margin(1)
   .areas(buf.area);
 
-  let peak = pmf.iter().map(|(_, p)| *p).fold(0.0, f64::max);
-  draw_chart(buf, chart, expression, pmf, stats, timing, peak);
+  draw_chart(buf, chart, expression, pmf, timing);
 
   Line::from(
     [
       stat("mean", format!("{:.2}", stats.mean)),
       stat("sd", format!("{:.2}", stats.sd)),
-      stat("max p", format!("{:.2}%", peak * 100.0)),
+      stat("max p", format!("{:.2}%", stats.peak * 100.0)),
     ]
     .concat(),
   )
@@ -98,9 +105,7 @@ fn draw_chart(
   area: Rect,
   expression: &str,
   pmf: &[(i32, f64)],
-  stats: &Stats,
   timing: &Timing,
-  peak: f64,
 ) {
   let block = Block::bordered()
     .border_type(BorderType::Rounded)
@@ -111,26 +116,24 @@ fn draw_chart(
       Span::styled(expression, Style::new().bold().fg(ACCENT)),
       Span::raw(" "),
     ]))
-    .title_top(
-      Line::from(format!(
-        " {} runs · {} per roll ",
-        thousands(stats.runs),
-        duration(timing)
-      ))
-      .right_aligned()
-      .dim(),
-    );
+    .title_top(Line::from(cost(timing)).right_aligned().dim());
   let inner = block.inner(area);
   block.render(area, buf);
 
   let (data, bar_width, bar_gap) = fit_bars(pmf, inner.width);
-  let labelled = bar_width >= label_width(pmf);
+  let labelled = data
+    .iter()
+    .all(|(label, _)| bar_width >= label.len() as u16);
+
+  // Scaled to the tallest bar rather than the likeliest outcome: a bucketed bar averages
+  // the outcomes it covers, so it sits below the peak wherever a bucket straddles the mode.
+  let ceiling = data.iter().map(|(_, p)| *p).fold(0.0, f64::max);
 
   let bars: Vec<Bar> = data
     .iter()
     .map(|(label, p)| {
       let bar = Bar::new((p * SCALE) as u64)
-        .style(Style::new().fg(bar_color(p / peak)))
+        .style(Style::new().fg(bar_color(p / ceiling)))
         // The value would otherwise be stamped over the foot of the bar.
         .text_value(String::new());
       if labelled {
@@ -154,7 +157,7 @@ fn draw_chart(
   BarChart::vertical(bars)
     .bar_width(bar_width)
     .bar_gap(bar_gap)
-    .max((peak * SCALE) as u64)
+    .max((ceiling * SCALE) as u64)
     .label_style(Style::new().dim())
     .render(plot, buf);
 }
@@ -167,8 +170,11 @@ fn fit_bars(pmf: &[(i32, f64)], available: u16) -> (Vec<(String, f64)>, u16, u16
     pmf
       .chunks(pmf.len().div_ceil(capacity))
       .map(|chunk| {
-        let total = chunk.iter().map(|(_, p)| p).sum();
-        (chunk[0].0.to_string(), total)
+        // The mean, not the total, so a bar always means "probability of one outcome".
+        // The last chunk is usually short, and would otherwise read as a dip that the
+        // distribution doesn't have.
+        let total: f64 = chunk.iter().map(|(_, p)| p).sum();
+        (chunk[0].0.to_string(), total / chunk.len() as f64)
       })
       .collect()
   } else {
@@ -182,14 +188,6 @@ fn fit_bars(pmf: &[(i32, f64)], available: u16) -> (Vec<(String, f64)>, u16, u16
     _ => ((slot as u16 - 1).min(MAX_BAR_WIDTH), 1),
   };
   (data, bar_width, bar_gap)
-}
-
-fn label_width(pmf: &[(i32, f64)]) -> u16 {
-  pmf
-    .iter()
-    .map(|(v, _)| v.to_string().len() as u16)
-    .max()
-    .unwrap_or(1)
 }
 
 /// Shades bars from a dim indigo up to [`ACCENT`] at the mode, so the shape of the
@@ -213,20 +211,39 @@ fn stat<'a>(label: &str, value: String) -> Vec<Span<'a>> {
   ]
 }
 
-/// Formats a timing as `412.3 ± 87.1 ns`, choosing the unit from the mean so that the
-/// spread is directly comparable to it.
-fn duration(timing: &Timing) -> String {
+/// Summarises what the distribution cost to produce, e.g. `100,000 runs · 412.3 ± 87.1 ns
+/// per roll` or `calculated in 1.2 ms`.
+fn cost(timing: &Timing) -> String {
+  match timing {
+    Timing::Simulated {
+      runs,
+      mean_nanos,
+      sd_nanos,
+    } => {
+      // The unit comes from the mean so that the spread is directly comparable to it.
+      let (scale, unit) = unit_for(*mean_nanos);
+      format!(
+        " {} runs · {:.1} ± {:.1} {unit} per roll ",
+        thousands(*runs),
+        mean_nanos / scale,
+        sd_nanos / scale
+      )
+    }
+    Timing::Calculated { nanos } => {
+      let (scale, unit) = unit_for(*nanos);
+      format!(" calculated in {:.1} {unit} ", nanos / scale)
+    }
+  }
+}
+
+/// The largest unit that leaves `nanos` above 1, as a (divisor, suffix) pair.
+fn unit_for(nanos: f64) -> (f64, &'static str) {
   const UNITS: [(f64, &str); 4] = [(1e9, "s"), (1e6, "ms"), (1e3, "µs"), (1.0, "ns")];
 
-  let (scale, unit) = UNITS
+  UNITS
     .into_iter()
-    .find(|(scale, _)| timing.mean_nanos >= *scale)
-    .unwrap_or((1.0, "ns"));
-  format!(
-    "{:.1} ± {:.1} {unit}",
-    timing.mean_nanos / scale,
-    timing.sd_nanos / scale
-  )
+    .find(|(scale, _)| nanos >= *scale)
+    .unwrap_or((1.0, "ns"))
 }
 
 fn thousands(n: usize) -> String {
