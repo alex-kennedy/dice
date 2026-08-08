@@ -1,4 +1,4 @@
-//! Implements the algorithm described in "Icepool: Efficient Computation of Dice Pool 
+//! Implements the algorithm described in "Icepool: Efficient Computation of Dice Pool
 //! Probabilities" for best/worst sums of a pool of dice.
 
 use std::collections::HashMap;
@@ -72,43 +72,47 @@ fn next_state(state: Option<usize>, outcome: usize, count: usize) -> usize {
 }
 
 /// Solves the sub problems for rolling a pool of dice and summing according to a count list.
-fn solve(
+fn solve<'a>(
   mut die: Range,
   count_list: &CountList,
   depth: u64,
   b: &mut MemoizedBinomialCoefficient,
-  c: &mut HashMap<CacheKey, HashMap<usize, BigUint>>,
-) -> HashMap<usize, BigUint> {
-  if let Some(v) = c.get(&cache_key(die.state(), count_list)) {
-    return v.clone();
-  }
+  c: &'a mut HashMap<CacheKey, HashMap<usize, BigUint>>,
+) -> &'a HashMap<usize, BigUint> {
+  let key = cache_key(die.state(), count_list);
 
-  let n = count_list.len;
-  let outcome = die.next();
+  // All branches here set the value in the cache for these inputs, then we return a reference from
+  // the cache.
+  if !c.contains_key(&key) {
+    let n = count_list.len;
+    let outcome = die.next();
 
-  if die.is_empty() {
-    let state = next_state(None, outcome, count_list.sum());
-    let mut m = HashMap::new();
-    m.insert(state, BigUint::one());
-    return m;
-  }
-
-  let mut m = HashMap::new();
-  for k in 0..=n {
-    let (new_count_list, count) = count_list.cut_at((n - k) as usize);
-    let tail = solve(die.clone(), &new_count_list, depth + 1, b, c);
-    c.insert(cache_key(die.state, &new_count_list), tail.clone());
-    for (&state, weight) in tail.iter() {
-      let state = next_state(Some(state), outcome, count);
-      let weight = weight * b.comb(n as usize, k as usize);
-      m.entry(state)
-        .and_modify(|v| *v += &weight)
-        .or_insert(weight);
+    if die.is_empty() {
+      let state = next_state(None, outcome, count_list.sum());
+      let mut m = HashMap::new();
+      m.insert(state, BigUint::one());
+      c.insert(key, m);
+    } else {
+      let mut m = HashMap::new();
+      for k in 0..=n {
+        let (new_count_list, count) = count_list.cut_at((n - k) as usize);
+        let tail = solve(die.clone(), &new_count_list, depth + 1, b, c);
+        for (&state, weight) in tail.iter() {
+          let state = next_state(Some(state), outcome, count);
+          let weight = weight * b.comb(n as usize, k as usize);
+          m.entry(state)
+            .and_modify(|v| *v += &weight)
+            .or_insert(weight);
+        }
+      }
+      c.insert(key, m);
     }
   }
-  return m;
+  return &c[&key];
 }
 
+/// Range represents the faces of a die, and are iterated through either up or down. Only `state`
+/// differs between function calls, so it's the only thing that makes it into the cache key.
 #[derive(Clone)]
 struct Range {
   state: usize,
@@ -117,6 +121,8 @@ struct Range {
 }
 
 impl Range {
+  /// Creates a new range going from start to stop in increments of +1 or -1, whichever order is
+  /// right.
   fn new(start: usize, stop: usize) -> Self {
     return Self {
       state: start,
@@ -125,10 +131,13 @@ impl Range {
     };
   }
 
+  /// Returns the state of the range.
   fn state(&self) -> usize {
     self.state
   }
 
+  /// Returns the next value in the range. Note this shouldn't be made public because it is unsafe -
+  /// it doesn't check that there indeed _is_ a next value, and would just keep growing.
   fn next(&mut self) -> usize {
     let result = self.state;
     match self.step {
@@ -138,6 +147,8 @@ impl Range {
     result
   }
 
+  /// Returns true if there are no values left to return in the range. `is_empty` being true will
+  /// not prevent next() from returning an invalid value.
   fn is_empty(&self) -> bool {
     match self.step {
       Step::Up => self.state > self.stop,
@@ -146,9 +157,13 @@ impl Range {
   }
 }
 
+/// Range step direction.
 #[derive(Clone)]
 enum Step {
+  /// Goes from low to high, in increments of +1.
   Up,
+
+  /// Goes from high to low, in increments of -1.
   Down,
 }
 

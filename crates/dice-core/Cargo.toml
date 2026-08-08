@@ -7,14 +7,22 @@ repository.workspace = true
 description.workspace = true
 
 [dependencies]
+getrandom = { version = "0.4.3", features = ["wasm_js"] }
 lalrpop-util = "0.23.1"
 num = "0.4.3"
 num-bigint = "0.5.1"
 pratt = "0.4.0"
 rand = "0.10.2"
 rstest = "0.26.1"
-rustfft = "6.4.1"
+rustfft = { version = "6.4.1", features = ["wasm_simd"] }
 thiserror = "2.0.19"
 
 [build-dependencies]
 lalrpop = "0.23.1"
+
+[dev-dependencies]
+criterion = { version = "0.8.2", features = ["html_reports"] }
+
+[[bench]]
+name = "keep"
+harness = false

@@ -24,6 +24,15 @@ pub enum Keep {
 }
 
 impl DicePool {
+  pub fn new(count: u32, faces: u32, pool: u32, keep: Keep) -> Self {
+    DicePool {
+      count,
+      faces,
+      pool,
+      keep,
+    }
+  }
+
   /// Rolls `pool` dice of `faces` sides, and returns the sum of the `count` best or worst (as
   /// determined by `keep`).
   pub fn roll<T: rand::Rng>(&self, rng: &mut T) -> u32 {
