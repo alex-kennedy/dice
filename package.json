@@ -10,7 +10,8 @@
     "wasm-pack": "wasm-pack build crates/dice-wasm --target web --out-name dice_wasm",
     "wasm-pack:dev": "npm run wasm-pack -- --dev",
     "wasm-pack:release": "npm run wasm-pack -- --release",
-    "test": "vitest run"
+    "test": "vitest run",
+    "deploy": "wrangler pages deploy"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -33,6 +34,7 @@
     "jsdom": "^30.0.1",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "wrangler": "^4.127.1"
   }
 }
