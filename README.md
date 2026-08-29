@@ -48,3 +48,7 @@ You can also run `simulate` to simulate rolling many dice according to your expr
 ```console
 $ cargo run simulate --runs=1000000 "d20a+2d4"
 ```
+
+## References
+
+- Liu, A. J. (2022). Icepool: Efficient Computation of Dice Pool Probabilities. _Proceedings of the AAAI Conference on Artificial Intelligence and Interactive Digital Entertainment_, 18(1), 258–265. https://doi.org/10.1609/aiide.v18i1.21971
