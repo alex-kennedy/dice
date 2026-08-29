@@ -1,58 +1,107 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { SiGithub } from "react-icons/si";
 
-import { Input } from "@/components/input";
+import { D20Icon } from "@/components/d20-icon";
+import { DiceChart } from "@/components/dice-chart";
+import { DiceRow } from "@/components/dice-row";
 import { useDiceLib } from "@/hooks/useDiceLib";
-
-type Result = { minimum: number; maximum: number; median: number } | { error: string };
+import {
+  createRow,
+  encodeRowsParam,
+  parseRowsParam,
+  type DiceRow as DiceRowData,
+} from "@/lib/dice-rows";
+import { computeRow, type RowComputation } from "@/lib/distribution";
 
 export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <DiceComparison />
+    </Suspense>
+  );
+}
+
+function DiceComparison() {
   const diceLibState = useDiceLib();
-  const [query, setQuery] = useState("2d6 + 3");
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
 
-  const result = useMemo<Result | null>(() => {
-    if (diceLibState.status !== "ready" || query.trim() === "") return null;
+  const [rows, setRows] = useState<DiceRowData[]>(() => parseRowsParam(searchParams.get("q")));
 
-    try {
-      const distribution = diceLibState.lib.calculate_distribution(query);
-      const { minimum, pmf } = distribution;
-      const maximum = minimum + pmf.length - 1;
+  const results = useMemo<Record<string, RowComputation>>(
+    () =>
+      Object.fromEntries(
+        rows.map((row) => [
+          row.id,
+          diceLibState.status === "ready"
+            ? computeRow(diceLibState.lib, row.expression)
+            : { status: "empty" as const },
+        ]),
+      ),
+    [diceLibState, rows],
+  );
 
-      let median = maximum;
-      let cumulative = 0;
-      for (let i = 0; i < pmf.length; i++) {
-        cumulative += pmf[i];
-        if (cumulative >= 0.5) {
-          median = minimum + i;
-          break;
-        }
-      }
+  useEffect(() => {
+    const encoded = encodeRowsParam(rows);
+    router.replace(`${pathname}${encoded ? `?q=${encoded}` : ""}`, { scroll: false });
+  }, [rows, pathname, router]);
 
-      return { minimum, maximum, median };
-    } catch (error) {
-      return { error: String(error) };
-    }
-  }, [diceLibState, query]);
+  const updateExpression = (id: string, expression: string) =>
+    setRows((current) => current.map((row) => (row.id === id ? { ...row, expression } : row)));
+
+  const addRow = () => setRows((current) => [...current, createRow()]);
+
+  const removeRow = (id: string) => setRows((current) => current.filter((row) => row.id !== id));
+
+  const ready = diceLibState.status === "ready";
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
-      <Input
-        className="max-w-xs"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder="2d6 + 3"
-        disabled={diceLibState.status !== "ready"}
-      />
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col">
+      <header className="flex items-center justify-between px-8 pt-4">
+        <Link href="/" aria-label="Home" className="text-foreground">
+          <D20Icon className="h-6 w-6" />
+        </Link>
+        <a
+          href="https://github.com/alex-kennedy/dice"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="View source on GitHub"
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <SiGithub className="h-5 w-5" />
+        </a>
+      </header>
 
-      {result &&
-        ("error" in result ? (
-          <p className="text-center text-sm text-destructive">{result.error}</p>
-        ) : (
-          <p className="text-center text-sm">
-            min {result.minimum} · max {result.maximum} · median {result.median}
-          </p>
-        ))}
-    </main>
+      <main className="flex flex-1 flex-col gap-6 p-8">
+        <DiceChart rows={rows} results={results} />
+
+        <div className="flex flex-col gap-4">
+          {rows.map((row, index) => (
+            <DiceRow
+              key={row.id}
+              index={index}
+              expression={row.expression}
+              result={results[row.id]}
+              disabled={!ready}
+              onChange={(expression) => updateExpression(row.id, expression)}
+              onRemove={() => removeRow(row.id)}
+            />
+          ))}
+
+          <button
+            type="button"
+            onClick={addRow}
+            className="self-start text-sm text-muted-foreground hover:text-foreground"
+          >
+            + Add expression
+          </button>
+        </div>
+      </main>
+    </div>
   );
 }

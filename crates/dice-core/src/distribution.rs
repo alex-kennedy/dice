@@ -87,6 +87,19 @@ impl Distribution {
     self.pmf().iter().fold(-f64::INFINITY, |a, &b| a.max(b))
   }
 
+  /// The outcome with the highest probability. Ties resolve to the lowest such outcome.
+  pub fn mode(&self) -> i32 {
+    let mut best_value = self.min();
+    let mut best_p = -f64::INFINITY;
+    for (value, p) in self.iter() {
+      if p > best_p {
+        best_p = p;
+        best_value = value;
+      }
+    }
+    best_value
+  }
+
   /// Returns the cumulative distribution, beginning at the minimum value.
   pub fn cdf(&self) -> Vec<f64> {
     let mut cdf = vec![0.0; self.len()];
@@ -186,5 +199,19 @@ mod tests {
     assert_eq!(d.pmf_at(-1), 0.25);
     assert_eq!(d.min(), -4);
     assert_eq!(d.max(), -1);
+  }
+
+  #[test]
+  fn test_mode() {
+    let d = Distribution::new(vec![0.1, 0.6, 0.3], 5);
+
+    assert_eq!(d.mode(), 6);
+  }
+
+  #[test]
+  fn test_mode_breaks_ties_to_lowest_outcome() {
+    let d = Distribution::new(vec![0.2, 0.4, 0.4], 5);
+
+    assert_eq!(d.mode(), 6);
   }
 }

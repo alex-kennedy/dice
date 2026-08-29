@@ -22,6 +22,18 @@ impl Distribution {
     self.0.min()
   }
 
+  /// The maximum possible dice roll.
+  #[wasm_bindgen(getter)]
+  pub fn maximum(&self) -> i32 {
+    self.0.max()
+  }
+
+  /// The outcome with the highest probability.
+  #[wasm_bindgen(getter)]
+  pub fn mode(&self) -> i32 {
+    self.0.mode()
+  }
+
   /// Probability mass function, starting from minimum.
   #[wasm_bindgen(getter)]
   pub fn pmf(&self) -> Vec<f64> {
@@ -56,6 +68,8 @@ mod tests {
   fn test_calculate_distribution_sums_dice_pool() {
     let dist = calculate_distribution("2d6".to_string()).unwrap();
     assert_eq!(dist.minimum(), 2);
+    assert_eq!(dist.maximum(), 12);
+    assert_eq!(dist.mode(), 7);
     assert_eq!(dist.pmf().len(), 11);
   }
 
