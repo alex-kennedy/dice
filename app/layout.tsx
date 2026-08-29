@@ -8,7 +8,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "dice",
+  title: "Dice Distributions",
 };
 
 export default function RootLayout({
