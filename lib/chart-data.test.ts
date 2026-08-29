@@ -23,6 +23,7 @@ describe("buildChartData", () => {
         maximum: 4,
         mode: 1,
         pmf: new Float64Array([0.25, 0.25, 0.25, 0.25]),
+        cdf: new Float64Array([0.25, 0.5, 0.75, 1]),
       },
       [twoD4.id]: {
         status: "ok",
@@ -30,6 +31,7 @@ describe("buildChartData", () => {
         maximum: 8,
         mode: 5,
         pmf: new Float64Array([1, 2, 3, 4, 3, 2, 1]).map((n) => n / 16),
+        cdf: new Float64Array([1, 3, 6, 10, 13, 15, 16]).map((n) => n / 16),
       },
     };
 

@@ -39,6 +39,12 @@ impl Distribution {
   pub fn pmf(&self) -> Vec<f64> {
     self.0.pmf().clone()
   }
+
+  /// Cumulative distribution function, starting from minimum.
+  #[wasm_bindgen(getter)]
+  pub fn cdf(&self) -> Vec<f64> {
+    self.0.cdf()
+  }
 }
 
 /// Parses and calculates the probability distribution for a dice rolling expression.
@@ -71,6 +77,12 @@ mod tests {
     assert_eq!(dist.maximum(), 12);
     assert_eq!(dist.mode(), 7);
     assert_eq!(dist.pmf().len(), 11);
+  }
+
+  #[test]
+  fn test_calculate_distribution_cdf() {
+    let dist = calculate_distribution("d4".to_string()).unwrap();
+    assert_eq!(dist.cdf(), vec![0.25, 0.5, 0.75, 1.0]);
   }
 
   #[test]
