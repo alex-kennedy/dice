@@ -8,6 +8,7 @@ import { SiGithub } from "react-icons/si";
 import { D20Icon } from "@/components/d20-icon";
 import { DiceChart } from "@/components/dice-chart";
 import { DiceRow } from "@/components/dice-row";
+import { ShareButton } from "@/components/share-button";
 import { useDiceLib } from "@/hooks/useDiceLib";
 import {
   createRow,
@@ -66,15 +67,18 @@ function DiceComparison() {
         <Link href="/" aria-label="Home" className="text-foreground">
           <D20Icon className="h-6 w-6" />
         </Link>
-        <a
-          href="https://github.com/alex-kennedy/dice"
-          target="_blank"
-          rel="noreferrer"
-          aria-label="View source on GitHub"
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <SiGithub className="h-5 w-5" />
-        </a>
+        <div className="flex items-center gap-4">
+          <ShareButton />
+          <a
+            href="https://github.com/alex-kennedy/dice"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="View source on GitHub"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <SiGithub className="h-5 w-5" />
+          </a>
+        </div>
       </header>
 
       <main className="flex flex-1 flex-col gap-6 p-8">
