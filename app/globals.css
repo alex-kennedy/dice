@@ -12,7 +12,7 @@
   --color-ring: var(--ring);
   --color-muted-foreground: var(--muted-foreground);
   --color-destructive: var(--destructive);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-atkinson-hyperlegible);
 }
 
 .dark {

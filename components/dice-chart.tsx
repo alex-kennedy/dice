@@ -31,7 +31,7 @@ export function DiceChart({ rows, results }: DiceChartProps) {
 
   return (
     <ChartContainer config={config} className="w-full">
-      <LineChart data={data}>
+      <LineChart data={data} margin={{ left: -16 }}>
         <CartesianGrid vertical={false} />
         <XAxis
           dataKey="outcome"
