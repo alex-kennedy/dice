@@ -50,7 +50,7 @@ impl Distribution {
 /// Parses and calculates the probability distribution for a dice rolling expression.
 #[wasm_bindgen]
 pub fn calculate_distribution(query: String) -> Result<Distribution, String> {
-  let expr = dice_core::parser::parse(&query).map_err(|e| e.message)?;
+  let expr = dice_core::parser::parse(&query.to_lowercase()).map_err(|e| e.message)?;
   let dist = calculate_expression(&expr).map_err(|e| e.message)?;
   Ok(Distribution(dist))
 }
@@ -63,6 +63,7 @@ mod tests {
   #[rstest]
   #[case("3", 3, vec![1.0])]
   #[case("d6", 1, vec![1.0 / 6.0; 6])]
+  #[case("D6", 1, vec![1.0 / 6.0; 6])]
   #[case("1+2", 3, vec![1.0])]
   fn test_calculate_distribution(#[case] query: &str, #[case] minimum: i32, #[case] pmf: Vec<f64>) {
     let dist = calculate_distribution(query.to_string()).unwrap();
