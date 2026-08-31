@@ -184,6 +184,21 @@ function DiceComparison() {
           </Collapsible.Root>
         </div>
       </main>
+
+      <footer className="flex items-center justify-center gap-2 px-8 pb-4 text-xs text-muted-foreground">
+        <a
+          href="https://github.com/alex-kennedy/dice"
+          target="_blank"
+          rel="noreferrer"
+          className="hover:text-foreground"
+        >
+          Source Code
+        </a>
+        <span aria-hidden="true">·</span>
+        <Link href="/help" className="hover:text-foreground">
+          How it Works
+        </Link>
+      </footer>
     </div>
   );
 }
